@@ -1,15 +1,18 @@
 package com.android.work.viewbus.manager;
 
 import android.app.Activity;
+import android.view.View;
 
 import com.android.work.viewbus.annotation.ContentView;
 import com.android.work.viewbus.annotation.EventAnnotation;
-import com.android.work.viewbus.annotation.onClick;
+import com.android.work.viewbus.annotation.OnClick;
 import com.android.work.viewbus.annotation.InjectView;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 
 /**
  * 项目名称：ViewAnnotation
@@ -33,14 +36,14 @@ public class ViewInjectManager {
     /**
      * 处理view的点击事件
      * */
-    private static void injectEvents(Activity activity) {
+    private static void injectEvents(final Activity activity) {
 
         //获取当前类对象的字节码对象
-        Class<? extends Activity> aClass = activity.getClass();
+        final Class<? extends Activity> aClass = activity.getClass();
         //获取本类的所有方法
         Method[] methods = aClass.getDeclaredMethods();
         //遍历所有的方法
-        for (Method method :
+        for (final Method method :
                 methods) {
 
             //获取每个方法的所有注解
@@ -50,25 +53,75 @@ public class ViewInjectManager {
                     annotations) {
 
                 //获取EventAnnotation注解对象
-                Class<? extends Annotation> annotationClass = annotation.annotationType();
-                EventAnnotation eventAnnotation = annotationClass.getAnnotation(EventAnnotation.class);
+                Class<? extends Annotation> annotationType = annotation.annotationType();
+                if (annotationType!=null) {
+                    EventAnnotation eventAnnotation = annotationType.getAnnotation(EventAnnotation.class);
+                    if (eventAnnotation != null) {
 
-                if (eventAnnotation!=null) {
-                    //获取事件设置器的监听器名称
-                    String eventSet = eventAnnotation.eventSet();
-                    //获取事件的监听器对象
-                    Class<?> eventType = eventAnnotation.eventType();
-                    //设置事件处理的方法名
-                    String eventMethod = eventAnnotation.eventMethod();
+                        //获取事件设置器的监听器名称
+                        String eventSet = eventAnnotation.eventSet();
+                        //获取事件的监听器对象
+                        final Class<?> eventType = eventAnnotation.eventType();
+                        //设置事件处理的方法名
+                        final String eventMethod = eventAnnotation.eventMethod();
 
-                    //获取injectEvents的注解对象
-                    onClick onClick = annotationClass.getAnnotation(onClick.class);
-                    //获取事件注解中的所有值
-                    int[] value = onClick.value();
-                    
+                        //获取onClick注解中的值
+                        try {
+                            Method value = annotationType.getDeclaredMethod("value");
+                            int[] values = (int[]) value.invoke(annotation);
+
+                            /**
+                             * 动态代理的实现 TODO 至于为啥，暂时还没有理解透彻
+                             *
+                             * ClassLoader loader  动态代理类接口的类加载器
+                             * Class<?>[] interfaces,  动态代理类的实现接口
+                             * InvocationHandler h
+                             * */
+                            Object o = Proxy.newProxyInstance(eventType.getClassLoader(), new Class[]{eventType}, new InvocationHandler() {
+                                @Override
+                                public Object invoke(Object o, Method method1, Object[] objects) throws Throwable {
+
+                                    //当调用setOnClickListener()的onClick时，调用这里
+
+                                    if (eventMethod.equals(method1.getName())) {
+                                        if (objects.length == 0) {
+                                            return method.invoke(activity);
+                                        }
+                                        return method.invoke(activity, objects);
+                                    }
+
+                                    return null;
+                                }
+                            });
+
+                            //遍历事件id
+                            for (int resId :
+                                    values) {
+
+                            /*//反射调用activity的findViewById方法初始化控件
+                            Method findViewById = aClass.getMethod("findViewById", int.class);
+                            findViewById.setAccessible(true);
+                            //初始化相应的控件
+                            View invoke = (View) findViewById.invoke(activity, resId);*/
+
+                                View view = activity.findViewById(resId);
+
+                                //通过拿到的view控件，进行反射调用setOnClickListener方法
+                                Class<?> invokeClass = view.getClass();
+                                Method m = invokeClass.getMethod(eventSet, eventType);
+
+                                //当执行这句进入我们的代理模式中，进行aop切面技术
+                                m.invoke(view, o);
+
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
 
 
+                    }
                 }
+
             }
 
         }

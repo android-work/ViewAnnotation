@@ -16,11 +16,11 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-@EventAnnotation(eventSet = "setOnClickListener",eventType = View.OnClickListener.class,eventMethod = "onClick")
-public @interface onClick {
+@EventAnnotation(eventSet = "setOnClickListener", eventType = View.OnClickListener.class, eventMethod = "onClick")
+public @interface OnClick {
 
     /**
-     * 获取方法中的注解s
+     * 获取注解中注解的值
      * */
     int[] value();
 }
